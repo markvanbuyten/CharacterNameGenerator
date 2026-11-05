@@ -1,6 +1,6 @@
-// dnd_namegen.cpp
-// Compileren: g++ -std=c++17 -Wall -Wextra -o dnd_namegen dnd_namegen.cpp
-// Of met MSVC: cl /EHsc /std:c++17 dnd_namegen.cpp
+// main.cpp
+// Compileren: g++ -std=c++17 -Wall -Wextra -o dnd_namegen main.cpp
+// Of met MSVC: cl /EHsc /std:c++17 main.cpp
 
 #include <algorithm>
 #include <fstream>
@@ -10,12 +10,9 @@
 #include <string>
 #include <vector>
 
-struct Character {
-    std::string firstName;
-    std::string lastName;
-};
 
-// ---------- Hulpfuncties voor invoer ----------
+
+// ---------- function for input ----------
 
 void clearInput() {
     std::cin.clear();
@@ -30,7 +27,7 @@ int readInt(const std::string& prompt, int minVal, int maxVal) {
             clearInput();
             return value;
         }
-        std::cout << "Ongeldige keuze, probeer opnieuw.\n";
+        std::cout << "Incorrect choice, try again.\n";
         clearInput();
     }
 }
@@ -39,125 +36,134 @@ std::string readLine(const std::string& prompt) {
     std::cout << prompt;
     std::string line;
     std::getline(std::cin, line);
-    // Trim spaties aan begin en eind
+    // Trim spaces at the beginning and end
     const auto start = line.find_first_not_of(" \t");
     if (start == std::string::npos) return "";
     const auto end = line.find_last_not_of(" \t");
     return line.substr(start, end - start + 1);
 }
 
-// ---------- Opslag ----------
+// ---------- Saving and Loading ----------
 
-const std::string SAVE_FILE = "characters.txt";
+const std::string FIRSTNAME_FILE = "firstnames.txt";
+const std::string LASTNAME_FILE = "lastnames.txt";
 
-std::vector<Character> loadCharacters() {
-    std::vector<Character> chars;
-    std::ifstream in(SAVE_FILE);
-    std::string first, last;
-    while (std::getline(in, first, '\t') && std::getline(in, last)) {
-        chars.push_back({first, last});
+// Load a list of names from a text file, one name per line
+std::vector<std::string> loadNames(const std::string& filename) {
+    std::vector<std::string> names;
+    std::ifstream in(filename);
+    std::string name;
+    while (std::getline(in, name)) {
+        if (!name.empty()) {
+            names.push_back(name);
+        }
     }
-    return chars;
+    return names;
 }
 
-void saveCharacters(const std::vector<Character>& chars) {
-    std::ofstream out(SAVE_FILE, std::ios::trunc);
-    for (const auto& c : chars) {
-        out << c.firstName << '\t' << c.lastName << '\n';
+// Save a list of names to a text file, one name per line
+void saveNames(const std::string& filename, const std::vector<std::string>& names) {
+    std::ofstream out(filename, std::ios::trunc);
+    for (const auto& name : names) {
+        out << name << '\n';
     }
 }
 
-// ---------- Menu-acties ----------
+// ---------- Menu actions ----------
 
-void addCharacter(std::vector<Character>& chars) {
-    std::cout << "\n--- Nieuw character toevoegen ---\n";
-    std::string first = readLine("Voornaam: ");
-    std::string last = readLine("Achternaam: ");
-    if (first.empty() || last.empty()) {
-        std::cout << "Voor- en achternaam mogen niet leeg zijn.\n";
+void addFirstName(std::vector<std::string>& firstNames) {
+    std::string name = readLine("Enter a first name: ");
+    if (!name.empty()) {
+        firstNames.push_back(name);
+        saveNames(FIRSTNAME_FILE, firstNames);
+        std::cout << "First name saved.\n";
+    } else {
+        std::cout << "No first name entered.\n";
+    }
+}
+
+void addLastName(std::vector<std::string>& lastNames) {
+    std::string name = readLine("Enter a last name: ");
+    if (!name.empty()) {
+        lastNames.push_back(name);
+        saveNames(LASTNAME_FILE, lastNames);
+        std::cout << "Last name saved.\n";
+    } else {
+        std::cout << "No last name entered.\n";
+    }
+}
+
+void listNames(const std::vector<std::string>& names, const std::string& title) {
+    std::cout << "\n--- " << title << " ---\n";
+    if (names.empty()) {
+        std::cout << "No names available.\n";
         return;
     }
-    chars.push_back({first, last});
-    saveCharacters(chars);
-    std::cout << "Character opgeslagen: " << first << " " << last << "\n";
+    for (size_t i = 0; i < names.size(); ++i) {
+        std::cout << (i + 1) << ". " << names[i] << '\n';
+    }
 }
 
-void listCharacters(const std::vector<Character>& chars) {
-    std::cout << "\n--- Opgeslagen characters ---\n";
-    if (chars.empty()) {
-        std::cout << "(Geen characters opgeslagen)\n";
+void deleteName(const std::string& title, std::vector<std::string>& names, const std::string& filename) {
+    listNames(names, title);
+    if (names.empty()) return;
+
+    int index = readInt("Enter the number of the name to delete (0 to cancel): ", 0, names.size());
+    if (index == 0) {
+        std::cout << "Deletion canceled.\n";
         return;
     }
-    for (size_t i = 0; i < chars.size(); ++i) {
-        std::cout << i + 1 << ". " << chars[i].firstName << " "
-                  << chars[i].lastName << "\n";
-    }
+    names.erase(names.begin() + (index - 1));
+    saveNames(filename, names);
+    std::cout << "Name deleted.\n";
 }
 
-void deleteCharacter(std::vector<Character>& chars) {
-    listCharacters(chars);
-    if (chars.empty()) return;
-    int idx = readInt("Nummer van character om te verwijderen (0 = annuleren): ",
-                      0, static_cast<int>(chars.size()));
-    if (idx == 0) return;
-    chars.erase(chars.begin() + (idx - 1));
-    saveCharacters(chars);
-    std::cout << "Character verwijderd.\n";
-}
-
-void generateRandomName(const std::vector<Character>& chars) {
-    std::cout << "\n--- Random nieuw character ---\n";
-    if (chars.size() < 2) {
-        std::cout << "Voeg eerst minstens 2 characters toe; er worden voornamen\n"
-                     "en achternamen uit de opgeslagen lijst gecombineerd.\n";
+void generateRandomName(const std::vector<std::string>& firstNames, const std::vector<std::string>& lastNames) {
+    if (firstNames.empty() || lastNames.empty()) {
+        std::cout << "Not enough names to generate a random name.\n";
         return;
     }
+    std::random_device rd;
+    std::mt19937 gen(rd());
+    std::uniform_int_distribution<> firstDist(0, firstNames.size() - 1);
+    std::uniform_int_distribution<> lastDist(0, lastNames.size() - 1);
 
-    static std::mt19937 rng(std::random_device{}());
-    std::uniform_int_distribution<size_t> pick(0, chars.size() - 1);
+    std::string randomFirstName = firstNames[firstDist(gen)];
+    std::string randomLastName = lastNames[lastDist(gen)];
 
-    // Voornaam en achternaam uit willekeurige (mogelijk verschillende) entries
-    const std::string first = chars[pick(rng)].firstName;
-    const std::string last = chars[pick(rng)].lastName;
-
-    std::cout << "Nieuwe naam: " << first << " " << last << "\n";
-
-    std::cout << "Opslaan? (j/n): ";
-    std::string answer;
-    std::getline(std::cin, answer);
-    if (!answer.empty() && (answer[0] == 'j' || answer[0] == 'J')) {
-        // Opslaan als nieuw character
-        Character c{first, last};
-        auto& mutableChars = const_cast<std::vector<Character>&>(chars);
-        mutableChars.push_back(c);
-        saveCharacters(mutableChars);
-        std::cout << "Character opgeslagen.\n";
-    }
+    std::cout << "Randomly generated name: " << randomFirstName << " " << randomLastName << '\n';
 }
 
 // ---------- Hoofdmenu ----------
 
 void printMenu() {
     std::cout << "\n=== DnD Naamgenerator ===\n"
-              << "1. Character toevoegen\n"
-              << "2. Characters tonen\n"
-              << "3. Character verwijderen\n"
-              << "4. Random naam genereren\n"
-              << "0. Afsluiten\n";
+              << "1. Add First Name\n"
+              << "2. Add Last Name\n"
+              << "3. List First Names\n"
+              << "4. List Last Names\n"
+              << "5. Delete First Name\n"
+              << "6. Delete Last Name\n"
+              << "7. Generate Random Name\n"
+              << "0. Exit\n";
 }
 
 int main() {
-    std::vector<Character> chars = loadCharacters();
+    std::vector<std::string> firstNames = loadNames(FIRSTNAME_FILE);
+    std::vector<std::string> lastNames = loadNames(LASTNAME_FILE);
 
     while (true) {
         printMenu();
-        int choice = readInt("Kies een optie: ", 0, 4);
+        int choice = readInt("Choose an option: ", 0, 7);
 
         switch (choice) {
-            case 1: addCharacter(chars); break;
-            case 2: listCharacters(chars); break;
-            case 3: deleteCharacter(chars); break;
-            case 4: generateRandomName(chars); break;
+            case 1: addFirstName(firstNames); break;
+            case 2: addLastName(lastNames); break;
+            case 3: listNames(firstNames, "First Names"); break;
+            case 4: listNames(lastNames, "Last Names"); break;
+            case 5: deleteName("First Names", firstNames, FIRSTNAME_FILE); break;
+            case 6: deleteName("Last Names", lastNames, LASTNAME_FILE); break;
+            case 7: generateRandomName(firstNames, lastNames); break;
             case 0:
                 std::cout << "Tot ziens!\n";
                 return 0;
